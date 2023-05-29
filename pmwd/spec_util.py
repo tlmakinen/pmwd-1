@@ -3,11 +3,27 @@ from functools import reduce
 from operator import mul
 
 import jax.numpy as jnp
+from jax import custom_vjp
 
 from pmwd.pm_util import rfftnfreq
 
 
-def powspec(f, spacing, bins=1j/3, g=None, deconv=0, cut_zero=True, cut_nyq=True,
+@custom_vjp
+def xtan(x):
+    return jnp.where(x != 0, x / jnp.tan(x), 1)
+
+
+def xtan_fwd(x):
+    return xtan(x), x
+
+def xtan_bwd(x, xtan_cot):
+    x_cot = xtan_cot * jnp.where(x != 0, 1 / jnp.tan(x) - x / jnp.sin(x) ** 2, 0)
+    return x_cot
+
+xtan.defvjp(xtan_fwd, xtan_bwd)
+
+
+def powspec(f, spacing, bins=1j/3, g=None, w=None, deconv=0, cut_zero=True, cut_nyq=True,
             int_dtype=jnp.uint32):
     """Compute auto or cross power spectrum in 3D averaged in spherical bins.
 
@@ -71,6 +87,15 @@ def powspec(f, spacing, bins=1j/3, g=None, deconv=0, cut_zero=True, cut_nyq=True
     kfun = 1 / max(grid_shape)
     knyq = 0.5
     kmax = knyq * math.sqrt(3)
+
+    if w == 'xtan':
+        P = reduce(mul, (xtan(jnp.pi * k) for k in kvec), P)
+    elif w == 'xtan2':
+        P = reduce(mul, (xtan(jnp.pi * k) ** 2 for k in kvec), P)
+    elif w == 'cos':
+        P = reduce(mul, (jnp.cos(jnp.pi * k) for k in kvec), P)
+    elif w == 'cos2':
+        P = reduce(mul, (jnp.cos(jnp.pi * k) ** 2 for k in kvec), P)
 
     if deconv != 0:
         P = reduce(mul, (jnp.sinc(k) ** -deconv for k in kvec), P)  # numpy sinc has pi
