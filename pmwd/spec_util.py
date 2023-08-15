@@ -1,9 +1,9 @@
 import math
-from functools import reduce
+from functools import reduce, partial
 from operator import mul
 
 import jax.numpy as jnp
-from jax import custom_vjp
+from jax import custom_vjp, jit, ensure_compile_time_eval
 
 from pmwd.pm_util import rfftnfreq
 
@@ -23,6 +23,7 @@ def xtan_bwd(x, xtan_cot):
 xtan.defvjp(xtan_fwd, xtan_bwd)
 
 
+@partial(jit, static_argnames=('bins', 'w', 'deconv', 'cut_zero','cut_nyq', 'int_dtype'))
 def powspec(f, spacing, bins=1j/3, g=None, w=None, deconv=0, cut_zero=True, cut_nyq=True,
             int_dtype=jnp.uint32):
     """Compute auto or cross power spectrum in 3D averaged in spherical bins.
@@ -109,21 +110,22 @@ def powspec(f, spacing, bins=1j/3, g=None, w=None, deconv=0, cut_zero=True, cut_
     P = P.ravel()
     N = N.ravel()
 
-    if isinstance(bins, (int, float)):
-        bins *= kfun
-        bin_num = math.ceil(kmax / bins)
-        bins *= jnp.arange(bin_num + 1)
-        right = True
-    elif isinstance(bins, complex):
-        kmaxable = all(s % 2 == 0 for s in grid_shape)
-        bin_num = math.ceil(math.log2(kmax / kfun) / bins.imag) + kmaxable
-        bins = kfun * 2 ** (bins.imag * jnp.arange(bin_num + 1))
-        right = False
-    else:
-        bin_num = len(bins) - 1
-        bins = jnp.asarray(bins)
-        bins *= spacing / (2 * jnp.pi)  # convert to 2π spacing
-        right = True
+    with ensure_compile_time_eval():
+        if isinstance(bins, (int, float)):
+            bins *= kfun
+            bin_num = math.ceil(kmax / bins)
+            bins *= jnp.arange(bin_num + 1)
+            right = True
+        elif isinstance(bins, complex):
+            kmaxable = all(s % 2 == 0 for s in grid_shape)
+            bin_num = math.ceil(math.log2(kmax / kfun) / bins.imag) + kmaxable
+            bins = kfun * 2 ** (bins.imag * jnp.arange(bin_num + 1))
+            right = False
+        else:
+            bin_num = len(bins) - 1
+            bins = jnp.asarray(bins)
+            bins *= spacing / (2 * jnp.pi)  # convert to 2π spacing
+            right = True
 
     b = jnp.digitize(k, bins, right=right)
     k *= N
@@ -132,11 +134,12 @@ def powspec(f, spacing, bins=1j/3, g=None, w=None, deconv=0, cut_zero=True, cut_
     P = jnp.bincount(b, weights=P, length=1+bin_num)
     N = jnp.bincount(b, weights=N, length=1+bin_num)
 
-    bmax = jnp.digitize(knyq if cut_nyq else kmax, bins, right=True)
-    k = k[cut_zero:bmax+1]
-    P = P[cut_zero:bmax+1]
-    N = N[cut_zero:bmax+1]
-    bins = bins[:bmax+1]
+    with ensure_compile_time_eval():
+        bmax = jnp.digitize(knyq if cut_nyq else kmax, bins, right=True) + 1
+    k = k[cut_zero:bmax]
+    P = P[cut_zero:bmax]
+    N = N[cut_zero:bmax]
+    bins = bins[:bmax]
 
     k /= N
     P /= N
