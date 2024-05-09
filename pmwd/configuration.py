@@ -8,6 +8,7 @@ from jax.typing import DTypeLike
 import jax.numpy as jnp
 from jax.tree_util import tree_map
 from mcfit import TophatVar
+import numpy as np
 
 from pmwd.tree_util import pytree_dataclass
 
@@ -98,7 +99,7 @@ class Configuration:
 
     """
 
-    ptcl_spacing: float
+    ptcl_spacing: Union[float, Tuple[float, ...]]
     ptcl_grid_shape: Tuple[int, ...]  # tuple[int, ...] for python >= 3.9 (PEP 585)
 
     mesh_shape: Union[float, Tuple[int, ...]] = 1
@@ -203,7 +204,11 @@ class Configuration:
     @property
     def ptcl_cell_vol(self):
         """Lagrangian particle grid cell volume in [L^dim]."""
-        return self.ptcl_spacing ** self.dim
+        if isinstance(self.ptcl_spacing, tuple):
+            return float(np.prod(self.ptcl_spacing))
+        
+        else:
+            return self.ptcl_spacing ** self.dim
 
     @property
     def ptcl_num(self):
@@ -214,7 +219,10 @@ class Configuration:
     @property
     def box_size(self):
         """Simulation box size tuple in [L]."""
-        return tuple(self.ptcl_spacing * s for s in self.ptcl_grid_shape)
+        if isinstance(self.ptcl_spacing, tuple):
+            return tuple(self.ptcl_spacing[i] * s for i,s in enumerate(self.ptcl_grid_shape))
+        else:
+            return tuple(self.ptcl_spacing * s for s in self.ptcl_grid_shape)
 
     @property
     def box_vol(self):
@@ -224,13 +232,21 @@ class Configuration:
 
     @property
     def cell_size(self):
-        """Mesh cell size in [L]."""
-        return self.ptcl_spacing * self.ptcl_grid_shape[0] / self.mesh_shape[0]
+        """Mesh cell size in [L]. Generalise to an array of cell sizes"""
+        
+        if not isinstance(self.ptcl_spacing, tuple):
+            ptcl_spacing = (self.ptcl_spacing,)*self.dim
+        else:
+            ptcl_spacing = self.ptcl_spacing
+
+        return jnp.asarray(tuple(ptcl_spacing[i] * self.ptcl_grid_shape[i] / self.mesh_shape[i] for i in range(self.dim)))
+        # return self.ptcl_spacing * self.ptcl_grid_shape[0] / self.mesh_shape[0]
 
     @property
     def cell_vol(self):
         """Mesh cell volume in [L^dim]."""
-        return self.cell_size ** self.dim
+        return float(np.prod(self.cell_size))
+       # return self.cell_size ** self.dim
 
     @property
     def mesh_size(self):

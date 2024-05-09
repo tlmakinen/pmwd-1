@@ -21,13 +21,21 @@ def _strain(kvec, i, j, pot, conf):
     """
     k_i, k_j = kvec[i], kvec[j]
 
-    nyquist = jnp.pi / conf.ptcl_spacing
-    eps = nyquist * jnp.finfo(conf.float_dtype).eps
+    #print("k_i", k_i.shape)
+    #idx = jnp.where(jnp.array(jnp.ones((128, 1, 1)).shape) > 1)[0]
+    idx_i = [i for i,d in enumerate(k_i.shape) if d > 1]
+    nyquist_i = jnp.pi / jnp.array(conf.ptcl_spacing)[*idx_i]
+    eps_i = nyquist_i * jnp.finfo(conf.float_dtype).eps
+
+    idx_j = [i for i,d in enumerate(k_j.shape) if d > 1]
+    nyquist_j = jnp.pi / jnp.array(conf.ptcl_spacing)[*idx_j]
+    eps_j = nyquist_j * jnp.finfo(conf.float_dtype).eps
+
 
     #TODO test if more accurate
     if i != j:
-        k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist) <= eps, 0, k_i)
-        k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist) <= eps, 0, k_j)
+        k_i = jnp.where(jnp.abs(jnp.abs(k_i) - nyquist_i) <= eps_i, 0, k_i)
+        k_j = jnp.where(jnp.abs(jnp.abs(k_j) - nyquist_j) <= eps_j, 0, k_j)
 
     strain = -k_i * k_j * pot
 
@@ -163,7 +171,7 @@ def lpt(modes, cosmo, conf):
 
     modes /= conf.ptcl_cell_vol  # remove volume factor first for convenience
 
-    kvec = fftfreq(conf.ptcl_grid_shape, conf.ptcl_spacing, dtype=conf.float_dtype)
+    kvec = fftfreq(conf.ptcl_grid_shape, jnp.array(conf.ptcl_spacing), dtype=conf.float_dtype)
 
     pot = []
 

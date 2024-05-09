@@ -94,6 +94,7 @@ class Particles:
 
         """
         pos = jnp.asarray(pos)
+        #cell_size = jnp.asarray(conf.cell_size)
 
         pmid = jnp.rint(pos / conf.cell_size)
         disp = pos - pmid * conf.cell_size
@@ -128,7 +129,7 @@ class Particles:
 
             # exact int arithmetic
             disp_1d = jnp.arange(sp) * sm - pmid_1d.astype(int) * sp
-            disp_1d *= conf.cell_size / sp
+            disp_1d *= conf.cell_size[i] / sp
             disp_1d = disp_1d.astype(conf.float_dtype)
             disp.append(disp_1d)
 

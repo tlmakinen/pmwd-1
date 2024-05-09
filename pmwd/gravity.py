@@ -35,7 +35,7 @@ laplace.defvjp(laplace_fwd, laplace_bwd)
 
 
 def neg_grad(k, pot, spacing):
-    nyquist = jnp.pi / spacing
+    nyquist = jnp.pi / spacing[0]
     eps = nyquist * jnp.finfo(k.dtype).eps
     neg_ik = jnp.where(jnp.abs(jnp.abs(k) - nyquist) <= eps, 0, -1j * k)
 

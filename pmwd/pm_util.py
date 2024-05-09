@@ -163,7 +163,7 @@ def fftfreq(shape, spacing, dtype=jnp.float64, sparse=True):
     ----------
     shape : tuple of int
         Shape of the real field.
-    spacing : float or None, optional
+    spacing : tuple of float or None, optional
         Grid spacing. None is equivalent to spacing of 2π with angular wavevector period
         of 1, or equivalently spacing of 1 with (non-angular) wavevector period of 1.
     dtype : DTypeLike
@@ -188,10 +188,10 @@ def fftfreq(shape, spacing, dtype=jnp.float64, sparse=True):
 
     kvec = []
     for axis, s in enumerate(shape[:-1]):
-        k = jnp.fft.fftfreq(s) * period
+        k = jnp.fft.fftfreq(s) * period[axis]
         kvec.append(k.astype(dtype))
 
-    k = jnp.fft.rfftfreq(shape[-1]) * period
+    k = jnp.fft.rfftfreq(shape[-1]) * period[axis]
     kvec.append(k.astype(dtype))
 
     kvec = jnp.meshgrid(*kvec, sparse=sparse, indexing='ij')
